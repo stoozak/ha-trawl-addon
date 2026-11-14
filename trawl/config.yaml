@@ -1,0 +1,46 @@
+name: Trawl
+version: "1.11.0"
+slug: trawl
+description: Trawl anti-bot solver (FlareSolverr-compatible /v1, Camoufox/Firefox) on port 8191
+url: https://github.com/germondai/trawl
+
+# Prebuilt upstream image - nothing is built on the Pi. Supervisor pulls
+# ghcr.io/germondai/trawl:<version>, so updating = bumping `version` to a
+# newer upstream release tag. The daily workflow in .github does this.
+image: ghcr.io/germondai/trawl
+
+arch:
+  - aarch64
+  - amd64
+
+startup: application
+boot: auto
+# Upstream image runs tini as PID 1 itself.
+init: false
+
+# container port: host port. App listens on 8191 inside the container;
+# host port 8191 too, matching the Vero's Trawl. The monitors use the
+# internal address http://<repo-hash>-trawl:8191 (hostname shown on the add-on Info tab), so the host port is only for
+# reaching it from the LAN.
+ports:
+  8191/tcp: 8191
+
+# Lets the Watchdog toggle restart the add-on if the API stops answering.
+# TCP rather than /health: /health returns 503 while the app is starting.
+watchdog: tcp://[HOST]:[PORT:8191]
+
+ports_description:
+  8191/tcp: Trawl API (FlareSolverr-compatible /v1, /health)
+
+environment:
+  # No Redis add-on: keep solved clearances in an in-process cache.
+  SESSION_CACHE_DRIVER: memory
+  BROWSER_POOL_SIZE: "1"
+  # Retire the warm browser after 10 min idle (default 0 = always warm,
+  # ~750 MB resident). The monitors solve rarely, so trade a cold start
+  # on the next solve for low idle memory.
+  BROWSER_IDLE_TIMEOUT_MS: "600000"
+  LOG_LEVEL: info
+
+options: {}
+schema: {}

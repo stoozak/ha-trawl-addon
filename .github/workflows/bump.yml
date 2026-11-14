@@ -1,0 +1,37 @@
+name: Bump trawl version
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pick newest release at least 3 days old
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cutoff=$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          tag=$(gh api repos/germondai/trawl/releases --jq \
+            "[.[] | select(.draft==false and .prerelease==false and .published_at <= \"$cutoff\")][0].tag_name")
+          [ -n "$tag" ] && [ "$tag" != "null" ] || { echo "no eligible release"; exit 0; }
+          new=${tag#v}
+          cur=$(sed -n 's/^version: "\(.*\)"/\1/p' trawl/config.yaml)
+          echo "current=$cur candidate=$new"
+          [ "$new" != "$cur" ] || exit 0
+          # never go backwards
+          [ "$(printf '%s\n%s\n' "$cur" "$new" | sort -V | tail -1)" = "$new" ] || exit 0
+          # image tag must exist before HA is told to pull it
+          tok=$(curl -fsS "https://ghcr.io/token?scope=repository:germondai/trawl:pull" | jq -r .token)
+          curl -fsS -o /dev/null -H "Authorization: Bearer $tok" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json' \
+            "https://ghcr.io/v2/germondai/trawl/manifests/$new"
+          sed -i "s/^version: \".*\"/version: \"$new\"/" trawl/config.yaml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Bump trawl to $new" && git push
