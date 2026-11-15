@@ -1,5 +1,5 @@
 name: Trawl
-version: "1.11.0"
+version: "1.11.1"
 slug: trawl
 description: Trawl anti-bot solver (FlareSolverr-compatible /v1, Camoufox/Firefox) on port 8191
 url: https://github.com/germondai/trawl
